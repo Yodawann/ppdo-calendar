@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PPDO Calendar</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 50%, #1a4070 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1100px; margin: 0 auto; }
+        h1 {
+            text-align: center; color: #fff; margin-bottom: 6px;
+            font-size: 2rem; text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .subtitle {
+            text-align: center; color: rgba(255,255,255,0.8);
+            margin-bottom: 25px; font-size: 0.95rem;
+        }
+        /* View Toggle */
+        .view-toggle {
+            display: flex; justify-content: center; gap: 10px;
+            margin-bottom: 20px;
+        }
+        .view-btn {
+            padding: 10px 24px; border: 2px solid rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.1); color: #fff;
+            border-radius: 25px; font-size: 0.9rem; font-weight: 600;
+            cursor: pointer; transition: all 0.25s;
+            backdrop-filter: blur(5px);
+        }
+        .view-btn:hover { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.5); }
+        .view-btn.active {
+            background: #fff; color: #1e3a5f; border-color: #fff;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .view-section { display: none; }
+        .view-section.active { display: block; }
+        /* Tabs */
+        .tabs {
+            display: flex; gap: 0; margin-bottom: 20px;
+            background: rgba(255,255,255,0.12); border-radius: 12px;
+            padding: 5px; backdrop-filter: blur(5px);
+        }
+        .tab-btn {
+            flex: 1; padding: 12px 16px; border: none; background: transparent;
+            color: rgba(255,255,255,0.8); font-size: 0.88rem; font-weight: 600;
+            cursor: pointer; border-radius: 8px; transition: all 0.25s;
+        }
+        .tab-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
+        .tab-btn.active {
+            background: #fff; color: #1e3a5f;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        /* Summary Cards */
+        .summary {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 15px; margin-bottom: 20px;
+        }
+        .summary-card {
+            background: #fff; border-radius: 12px; padding: 18px;
+            text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        .summary-card:hover { transform: translateY(-3px); }
+        .summary-card h3 {
+            font-size: 0.75rem; text-transform: uppercase;
+            letter-spacing: 1px; margin-bottom: 6px; color: #6b7280;
+        }
+        .summary-card .amount { font-size: 1.5rem; font-weight: 700; }
+        .card-upcoming { border-top: 4px solid #3b82f6; }
+        .card-upcoming .amount { color: #2563eb; }
+        .card-today { border-top: 4px solid #f59e0b; }
+        .card-today .amount { color: #d97706; }
+        .card-overdue { border-top: 4px solid #ef4444; }
+        .card-overdue .amount { color: #dc2626; }
+        .card-completed { border-top: 4px solid #10b981; }
+        .card-completed .amount { color: #059669; }
+        /* Calendar Grid */
+        .calendar-card {
+            background: #fff; border-radius: 12px; padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px;
+        }
+        .calendar-nav {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 15px;
+        }
+        .calendar-nav h2 { font-size: 1.1rem; color: #1e3a5f; }
+        .cal-nav-btn {
+            background: #f3f4f6; border: none; padding: 8px 14px;
+            border-radius: 8px; font-size: 1rem; cursor: pointer;
+            color: #374151; transition: background 0.2s;
+        }
+        .cal-nav-btn:hover { background: #e5e7eb; }
+        .calendar-grid {
+            display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
+        }
+        .cal-day-header {
+            text-align: center; font-size: 0.75rem; font-weight: 700;
+            color: #6b7280; padding: 8px 4px; text-transform: uppercase;
+        }
+        .cal-day {
+            min-height: 70px; padding: 6px; border-radius: 6px;
+            font-size: 0.8rem; cursor: pointer; transition: background 0.15s;
+            position: relative; border: 1px solid #f3f4f6;
+        }
+        .cal-day:hover { background: #f0f7ff; }
+        .cal-day.other-month { opacity: 0.35; }
+        .cal-day.today { background: #eff6ff; border-color: #3b82f6; }
+        .cal-day .day-num {
+            font-weight: 600; color: #374151; font-size: 0.8rem;
+            margin-bottom: 3px;
+        }
+        .cal-day.today .day-num { color: #2563eb; }
+        .cal-dot {
+            display: inline-block; width: 6px; height: 6px;
+            border-radius: 50%; margin: 1px;
+        }
+        .dot-meeting { background: #3b82f6; }
+        .dot-deadline { background: #ef4444; }
+        .dot-task { background: #f59e0b; }
+        .dot-event { background: #10b981; }
+        .dot-personal { background: #8b5cf6; }
+        /* Form Card */
+        .form-card {
+            background: #fff; border-radius: 12px; padding: 22px;
+            margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .form-card h2 { margin-bottom: 15px; color: #374151; font-size: 1.1rem; }
+        .form-row {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 12px; margin-bottom: 12px;
+        }
+        .form-row-3 {
+            display: grid; grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px; margin-bottom: 12px;
+        }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group label {
+            font-size: 0.75rem; font-weight: 600; color: #6b7280;
+            margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .form-group input, .form-group select, .form-group textarea {
+            padding: 10px 14px; border: 2px solid #e5e7eb;
+            border-radius: 8px; font-size: 0.9rem;
+            transition: border-color 0.2s; outline: none;
+            font-family: inherit;
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            border-color: #3b82f6;
+        }
+        .form-group textarea { resize: vertical; min-height: 60px; }
+        .form-actions {
+            display: flex; gap: 10px; justify-content: flex-end; margin-top: 5px;
+        }
+        .btn-primary {
+            padding: 10px 24px; background: #3b82f6; color: #fff;
+            border: none; border-radius: 8px; font-size: 0.9rem;
+            font-weight: 600; cursor: pointer; transition: background 0.2s;
+        }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-secondary {
+            padding: 10px 24px; background: #e5e7eb; color: #374151;
+            border: none; border-radius: 8px; font-size: 0.9rem;
+            font-weight: 600; cursor: pointer; transition: background 0.2s;
+        }
+        .btn-secondary:hover { background: #d1d5db; }
+        .btn-danger {
+            padding: 10px 24px; background: #ef4444; color: #fff;
+            border: none; border-radius: 8px; font-size: 0.9rem;
+            font-weight: 600; cursor: pointer; transition: background 0.2s;
+        }
+        .btn-danger:hover { background: #dc2626; }
+        /* Activity List */
+        .list-card {
+            background: #fff; border-radius: 12px; padding: 22px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px;
+        }
+        .list-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 15px; flex-wrap: wrap; gap: 10px;
+        }
+        .list-header h2 { color: #374151; font-size: 1.1rem; }
+        .activity-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 14px; border-radius: 8px; margin-bottom: 8px;
+            border: 1px solid #f3f4f6; transition: all 0.15s;
+        }
+        .activity-item:hover { background: #f9fafb; border-color: #e5e7eb; }
+        .activity-item.completed { opacity: 0.6; }
+        .activity-item.completed .activity-title { text-decoration: line-through; }
+        .activity-color {
+            width: 4px; height: 40px; border-radius: 4px; flex-shrink: 0;
+        }
+        .color-meeting { background: #3b82f6; }
+        .color-deadline { background: #ef4444; }
+        .color-task { background: #f59e0b; }
+        .color-event { background: #10b981; }
+        .color-personal { background: #8b5cf6; }
+        .activity-info { flex: 1; min-width: 0; }
+        .activity-title {
+            font-weight: 600; font-size: 0.9rem; color: #374151;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .activity-meta {
+            font-size: 0.78rem; color: #6b7280; margin-top: 2px;
+            display: flex; gap: 12px; flex-wrap: wrap;
+        }
+        .activity-actions { display: flex; gap: 6px; flex-shrink: 0; }
+        .btn-icon {
+            background: none; border: none; font-size: 1rem;
+            cursor: pointer; padding: 6px 8px; border-radius: 6px;
+            transition: background 0.2s;
+        }
+        .btn-icon:hover { background: #f3f4f6; }
+        .btn-icon.check:hover { background: #d1fae5; }
+        .btn-icon.edit:hover { background: #dbeafe; }
+        .btn-icon.delete:hover { background: #fee2e2; }
+        /* Category Badge */
+        .cat-badge {
+            display: inline-block; padding: 2px 8px; border-radius: 10px;
+            font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+        }
+        .badge-meeting { background: #dbeafe; color: #2563eb; }
+        .badge-deadline { background: #fee2e2; color: #dc2626; }
+        .badge-task { background: #fef3c7; color: #d97706; }
+        .badge-event { background: #d1fae5; color: #059669; }
+        .badge-personal { background: #ede9fe; color: #7c3aed; }
+        /* Priority */
+        .priority-high { border-left: 3px solid #ef4444; }
+        .priority-medium { border-left: 3px solid #f59e0b; }
+        .priority-low { border-left: 3px solid #10b981; }
+        /* Empty state */
+        .empty-state {
+            text-align: center; padding: 40px; color: #9ca3af;
+        }
+        .empty-state span { font-size: 2rem; display: block; margin-bottom: 10px; }
+        /* Modal */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); z-index: 1000; align-items: center;
+            justify-content: center; padding: 20px;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: #fff; border-radius: 12px; padding: 25px;
+            width: 100%; max-width: 480px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            max-height: 90vh; overflow-y: auto;
+        }
+        .modal h3 { margin-bottom: 18px; color: #374151; font-size: 1.15rem; }
+        /* Share Dashboard */
+        .share-section {
+            background: rgba(255,255,255,0.1); border-radius: 12px;
+            padding: 18px; margin-bottom: 20px; backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .share-section h3 { color: #fff; margin-bottom: 10px; font-size: 0.95rem; }
+        .share-row {
+            display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+        }
+        .share-input {
+            flex: 1; min-width: 200px; padding: 10px 14px;
+            border: 2px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1);
+            border-radius: 8px; color: #fff; font-size: 0.88rem; outline: none;
+        }
+        .share-input::placeholder { color: rgba(255,255,255,0.5); }
+        .btn-share {
+            padding: 10px 20px; background: #10b981; color: #fff;
+            border: none; border-radius: 8px; font-weight: 600;
+            font-size: 0.88rem; cursor: pointer; transition: background 0.2s;
+        }
+        .btn-share:hover { background: #059669; }
+        .share-link-box {
+            margin-top: 12px; padding: 10px 14px; background: rgba(255,255,255,0.15);
+            border-radius: 8px; display: none; word-break: break-all;
+        }
+        .share-link-box a { color: #93c5fd; font-size: 0.85rem; }
+        .share-link-box .copy-btn {
+            background: #3b82f6; color: #fff; border: none; padding: 4px 12px;
+            border-radius: 5px; font-size: 0.78rem; cursor: pointer;
+            margin-left: 10px;
+        }
+        /* Filter */
+        .filter-bar {
+            display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 15px;
+        }
+        .filter-chip {
+            padding: 6px 14px; border-radius: 20px; border: 1px solid #e5e7eb;
+            background: #fff; font-size: 0.8rem; font-weight: 500;
+            cursor: pointer; transition: all 0.2s; color: #374151;
+        }
+        .filter-chip:hover { border-color: #3b82f6; color: #2563eb; }
+        .filter-chip.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+        /* Readonly banner */
+        .readonly-banner {
+            background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px;
+            padding: 12px 18px; margin-bottom: 20px; display: none;
+            text-align: center; color: #92400e; font-weight: 500; font-size: 0.9rem;
+        }
+        .readonly-banner.show { display: block; }
+        /* View mode toggle */
+        .view-mode-btn { transition: all 0.2s; }
+        .view-mode-btn.active { background: #3b82f6 !important; color: #fff !important; border-color: #3b82f6; }
+        /* Notifications */
+        .notif-bell { position: relative; cursor: pointer; font-size: 1.3rem; padding: 6px 10px;
+            border-radius: 8px; border: none; background: transparent; transition: all 0.2s; }
+        .notif-bell:hover { background: rgba(255,255,255,0.1); }
+        .notif-badge { position: absolute; top: 2px; right: 4px; width: 16px; height: 16px;
+            background: #ef4444; border-radius: 50%; font-size: 0.6rem; font-weight: 700;
+            color: #fff; display: flex; align-items: center; justify-content: center; }
+        .notif-panel { display: none; position: fixed; top: 60px; right: 20px; width: 320px;
+            max-height: 400px; overflow-y: auto; background: #fff;
+            border: 1px solid #e5e7eb; border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15); z-index: 999; padding: 15px; }
+        .notif-panel.show { display: block; }
+        .notif-panel h4 { color: #1e3a5f; font-size: 0.9rem; margin-bottom: 10px; }
+        .notif-item { padding: 10px; border-radius: 6px; margin-bottom: 6px;
+            background: #f9fafb; border: 1px solid #f3f4f6; font-size: 0.8rem; color: #4b5563; }
+        .notif-item.unread { background: #eff6ff; border-color: #bfdbfe; }
+        .notif-item .notif-author { color: #2563eb; font-weight: 600; }
+        .notif-item .notif-time { color: #9ca3af; font-size: 0.68rem; display: block; margin-top: 3px; }
+        .notif-empty { text-align: center; color: #9ca3af; padding: 20px; font-size: 0.82rem; }
+        .notif-clear { background: none; border: none; color: #9ca3af; font-size: 0.75rem; cursor: pointer; }
+        .notif-clear:hover { color: #ef4444; }
+        @media (max-width: 700px) {
+            .form-row, .form-row-3 { grid-template-columns: 1fr; }
+            .cal-day { min-height: 50px; }
+            .tabs { flex-wrap: wrap; }
+            .tab-btn { font-size: 0.78rem; padding: 10px 8px; }
+            .activity-meta { flex-direction: column; gap: 4px; }
+            .notif-panel { right: 10px; left: 10px; width: auto; }
+        }
+        @media print {
+            body { background: #fff !important; padding: 0 !important; }
+            body::before { display: none !important; }
+            .container > *:not(#print-content) { display: none !important; }
+            .modal-overlay, .notif-panel { display: none !important; }
+            #print-content { display: block !important; color: #000; }
+        }
+        #print-content { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div style="display:flex; justify-content:flex-end; margin-bottom:-20px;">
+            <button class="notif-bell" onclick="toggleNotifPanel()">🔔<span class="notif-badge" id="notif-badge" style="display:none;">0</span></button>
+        </div>
+        <div class="notif-panel" id="notif-panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <h4>🔔 Notifications</h4>
+                <button class="notif-clear" onclick="clearNotifications()">Clear All</button>
+            </div>
+            <div id="notif-list"><div class="notif-empty">No notifications yet.</div></div>
+        </div>
+        <h1>📅 PPDO Calendar</h1>
+        <p class="subtitle">Track, manage, and share PPDO tasks and activities</p>
+        <div id="cloud-status" style="text-align:center;margin-bottom:15px;font-size:0.78rem;"></div>
+
+        <!-- ========== MANAGE VIEW ========== -->
+        <div class="view-section active" id="view-manage">
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Overview</button>
+                <button class="tab-btn" onclick="switchTab('activities')">📋 Activities</button>
+                <button class="tab-btn" onclick="switchTab('add')">➕ Add New</button>
+            </div>
+            <!-- OVERVIEW TAB -->
+            <div class="tab-content active" id="tab-dashboard">
+                <div class="summary">
+                    <div class="summary-card card-today">
+                        <h3>Today</h3>
+                        <div class="amount" id="count-today">0</div>
+                    </div>
+                    <div class="summary-card card-upcoming">
+                        <h3>Upcoming</h3>
+                        <div class="amount" id="count-upcoming">0</div>
+                    </div>
+                    <div class="summary-card card-overdue">
+                        <h3>Overdue</h3>
+                        <div class="amount" id="count-overdue">0</div>
+                    </div>
+                    <div class="summary-card card-completed">
+                        <h3>Completed</h3>
+                        <div class="amount" id="count-completed">0</div>
+                    </div>
+                </div>
+                <!-- Today's Activities -->
+                <div class="list-card">
+                    <div class="list-header">
+                        <h2>📌 Today's Activities</h2>
+                    </div>
+                    <div id="list-today"></div>
+                    <div class="empty-state" id="empty-today">
+                        <span>☀️</span>No activities scheduled for today.
+                    </div>
+                </div>
+                <!-- Upcoming Activities -->
+                <div class="list-card">
+                    <div class="list-header">
+                        <h2>🔜 Upcoming (Next 7 Days)</h2>
+                    </div>
+                    <div id="list-upcoming"></div>
+                    <div class="empty-state" id="empty-upcoming">
+                        <span>📭</span>No upcoming activities this week.
+                    </div>
+                </div>
+            </div>
+            <!-- ACTIVITIES TAB (merged: list + calendar view toggle) -->
+            <div class="tab-content" id="tab-activities">
+                <div class="list-card" style="margin-bottom:20px;">
+                    <div class="list-header">
+                        <h2>📋 All Activities</h2>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                            <button class="btn-secondary view-mode-btn active" id="btn-list-view" onclick="setViewMode('list')" style="font-size:0.8rem; padding:6px 12px;">📋 List</button>
+                            <button class="btn-secondary view-mode-btn" id="btn-cal-view" onclick="setViewMode('calendar')" style="font-size:0.8rem; padding:6px 12px;">📅 Calendar</button>
+                            <span style="color:#d1d5db;">|</span>
+                            <button class="btn-primary" onclick="exportActivities()" style="font-size:0.8rem; padding:6px 12px;">📥 Export</button>
+                            <button class="btn-secondary" onclick="importActivities()" style="font-size:0.8rem; padding:6px 12px;">📂 Import</button>
+                            <button class="btn-secondary" onclick="openPrintModal()" style="font-size:0.8rem; padding:6px 12px;">🖨️ Print</button>
+                        </div>
+                    </div>
+                    <div class="filter-bar" id="filter-bar">
+                        <span class="filter-chip active" onclick="filterBy('all')">All</span>
+                        <span class="filter-chip" onclick="filterBy('meeting')">Meeting</span>
+                        <span class="filter-chip" onclick="filterBy('deadline')">Deadline</span>
+                        <span class="filter-chip" onclick="filterBy('task')">Task</span>
+                        <span class="filter-chip" onclick="filterBy('event')">Event</span>
+                        <span class="filter-chip" onclick="filterBy('personal')">Personal</span>
+                    </div>
+                    <!-- LIST VIEW -->
+                    <div id="activities-list-view">
+                        <div id="list-all"></div>
+                        <div class="empty-state" id="empty-all">
+                            <span>📋</span>No activities yet. Add one from the "Add New" tab!
+                        </div>
+                    </div>
+                    <!-- CALENDAR VIEW -->
+                    <div id="activities-cal-view" style="display:none;">
+                        <div class="calendar-card" style="box-shadow:none; padding:0; margin-top:10px;">
+                            <div class="calendar-nav">
+                                <button class="cal-nav-btn" onclick="navMonth(-1)">◀</button>
+                                <h2 id="cal-month-label">July 2026</h2>
+                                <button class="cal-nav-btn" onclick="navMonth(1)">▶</button>
+                            </div>
+                            <div class="calendar-grid" id="calendar-grid"></div>
+                            <div style="margin-top: 12px; display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.75rem; color: #6b7280;">
+                                <span><span class="cal-dot dot-meeting"></span> Meeting</span>
+                                <span><span class="cal-dot dot-deadline"></span> Deadline</span>
+                                <span><span class="cal-dot dot-task"></span> Task</span>
+                                <span><span class="cal-dot dot-event"></span> Event</span>
+                                <span><span class="cal-dot dot-personal"></span> Personal</span>
+                            </div>
+                        </div>
+                        <!-- Selected day activities -->
+                        <div id="day-detail-card" style="display:none; margin-top:15px; padding-top:15px; border-top:1px solid #f3f4f6;">
+                            <h3 id="day-detail-title" style="font-size:0.95rem; color:#374151; margin-bottom:10px;">Activities</h3>
+                            <div id="list-day-detail"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- ADD NEW TAB -->
+            <div class="tab-content" id="tab-add">
+                <div class="form-card">
+                    <h2>➕ Add New Activity</h2>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Title *</label>
+                            <input type="text" id="add-title" placeholder="e.g. Staff Meeting, Submit Report">
+                        </div>
+                        <div class="form-group">
+                            <label>Category</label>
+                            <input type="text" id="add-category" list="category-options" placeholder="Select or type new..." value="meeting">
+                            <datalist id="category-options">
+                                <option value="meeting">
+                                <option value="deadline">
+                                <option value="task">
+                                <option value="event">
+                                <option value="personal">
+                                <option value="training">
+                                <option value="travel">
+                                <option value="leave">
+                            </datalist>
+                        </div>
+                    </div>
+                    <div class="form-row" style="margin-bottom:12px;">
+                        <div class="form-group">
+                            <label>Start Date *</label>
+                            <input type="date" id="add-date">
+                        </div>
+                        <div class="form-group">
+                            <label>End Date</label>
+                            <input type="date" id="add-end-date">
+                        </div>
+                    </div>
+                    <div class="form-row-3">
+                        <div class="form-group">
+                            <label>Start Time</label>
+                            <input type="time" id="add-time">
+                        </div>
+                        <div class="form-group">
+                            <label>End Time</label>
+                            <input type="time" id="add-end-time">
+                        </div>
+                        <div class="form-group">
+                            <label>Priority</label>
+                            <select id="add-priority">
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                                <option value="low">Low</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom:12px;">
+                        <label>Location / Venue</label>
+                        <input type="text" id="add-location" placeholder="e.g. Conference Room, Capitol Building">
+                    </div>
+                    <div class="form-group" style="margin-bottom:12px;">
+                        <label>Notes / Description</label>
+                        <textarea id="add-notes" placeholder="Additional details..."></textarea>
+                    </div>
+                    <div class="form-group" style="margin-bottom:12px;">
+                        <label>Attachment (Image/PDF, max 2MB)</label>
+                        <input type="file" id="add-attachment" accept="image/*,.pdf" onchange="previewAttachment(this, 'add-preview')" style="padding:8px;">
+                        <div id="add-preview" style="margin-top:8px;"></div>
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn-secondary" onclick="clearForm()">Clear</button>
+                        <button class="btn-primary" onclick="saveActivity()">💾 Save Activity</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Edit Modal -->
+    <div class="modal-overlay" id="edit-modal">
+        <div class="modal">
+            <h3>✏️ Edit Activity</h3>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label>Title</label>
+                <input type="text" id="edit-title">
+            </div>
+            <div class="form-row" style="margin-bottom:12px;">
+                <div class="form-group">
+                    <label>Category</label>
+                    <input type="text" id="edit-category" list="category-options" placeholder="Select or type...">
+                </div>
+                <div class="form-group">
+                    <label>Priority</label>
+                    <select id="edit-priority">
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row" style="margin-bottom:12px;">
+                <div class="form-group">
+                    <label>Start Date</label>
+                    <input type="date" id="edit-date">
+                </div>
+                <div class="form-group">
+                    <label>End Date</label>
+                    <input type="date" id="edit-end-date">
+                </div>
+            </div>
+            <div class="form-row" style="margin-bottom:12px;">
+                <div class="form-group">
+                    <label>Start Time</label>
+                    <input type="time" id="edit-time">
+                </div>
+                <div class="form-group">
+                    <label>End Time</label>
+                    <input type="time" id="edit-end-time">
+                </div>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label>Location</label>
+                <input type="text" id="edit-location">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label>Notes</label>
+                <textarea id="edit-notes"></textarea>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label>Attachment</label>
+                <input type="file" id="edit-attachment" accept="image/*,.pdf" onchange="previewAttachment(this, 'edit-preview')" style="padding:8px;">
+                <div id="edit-preview" style="margin-top:8px;"></div>
+                <button type="button" onclick="removeAttachment()" style="margin-top:5px;background:none;border:none;color:#ef4444;font-size:0.78rem;cursor:pointer;">✕ Remove attachment</button>
+            </div>
+            <div class="form-actions">
+                <button class="btn-secondary" onclick="closeEditModal()">Cancel</button>
+                <button class="btn-primary" onclick="updateActivity()">💾 Update</button>
+            </div>
+        </div>
+    </div>
+    <!-- Print Modal -->
+    <div class="modal-overlay" id="print-modal">
+        <div class="modal">
+            <h3>🖨️ Print Activities</h3>
+            <div class="form-row" style="margin-bottom:12px;">
+                <div class="form-group"><label>From Date</label><input type="date" id="print-from"></div>
+                <div class="form-group"><label>To Date</label><input type="date" id="print-to"></div>
+            </div>
+            <div class="form-actions">
+                <button class="btn-secondary" onclick="closePrintModal()">Cancel</button>
+                <button class="btn-primary" onclick="printActivities()">🖨️ Print</button>
+            </div>
+        </div>
+    </div>
+    <div id="print-content"></div>
+    <script>
+    // ===== DATA STORE =====
+    const STORAGE_KEY = 'ppdoCalendarActivities';
+    const COMMENTS_KEY = 'ppdoCalendarComments';
+    let activities = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    let comments = JSON.parse(localStorage.getItem(COMMENTS_KEY) || '{}');
+    let currentFilter = 'all';
+    let calYear = new Date().getFullYear();
+    let calMonth = new Date().getMonth();
+    let editingId = null;
+
+    function previewAttachment(input, previewId) {
+        const file = input.files[0];
+        const preview = document.getElementById(previewId);
+        if (!file) { preview.innerHTML = ''; return; }
+        if (file.size > 2 * 1024 * 1024) { alert('File too large. Max 2MB.'); input.value = ''; preview.innerHTML = ''; return; }
+        preview.innerHTML = `<span style="color:#6b7280;font-size:0.78rem;">📎 ${file.name} (${(file.size/1024).toFixed(1)}KB)</span>`;
+    }
+    function fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve({ name: file.name, type: file.type, data: reader.result });
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+    function removeAttachment() {
+        document.getElementById('edit-attachment').value = '';
+        document.getElementById('edit-preview').innerHTML = '';
+        if (editingId) { const a = activities.find(x => x.id === editingId); if (a) a.attachment = null; }
+    }
+
+    function save() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(activities));
+        syncToCloud();
+    }
+    function saveComments() {
+        localStorage.setItem(COMMENTS_KEY, JSON.stringify(comments));
+        syncToCloud();
+    }
+
+    // ===== CLOUD SYNC (Firebase Realtime Database REST API) =====
+    const FIREBASE_KEY = 'ppdoCalendarFirebaseUrl';
+    let firebaseUrl = localStorage.getItem(FIREBASE_KEY) || '';
+
+    async function syncToCloud() {
+        if (!firebaseUrl) return;
+        try {
+            await fetch(firebaseUrl + '/data.json', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ activities, comments, updatedAt: new Date().toISOString() })
+            });
+        } catch (e) {}
+    }
+
+    // Load data from Firebase on startup (restore if localStorage is empty)
+    async function loadFromFirebase() {
+        if (!firebaseUrl) return;
+        try {
+            const r = await fetch(firebaseUrl + '/data.json');
+            if (!r.ok) return;
+            const data = await r.json();
+            if (data && data.activities && data.activities.length > 0) {
+                // If local is empty but cloud has data, restore from cloud
+                if (activities.length === 0) {
+                    activities = data.activities;
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(activities));
+                    if (data.comments) { comments = data.comments; localStorage.setItem(COMMENTS_KEY, JSON.stringify(comments)); }
+                    renderAll();
+                }
+            }
+        } catch (e) {}
+    }
+
+    function setupFirebase() {
+        const url = prompt('Enter your Firebase Realtime Database URL:\n\n(e.g. https://your-project-default-rtdb.firebaseio.com)\n\nGet one free at https://console.firebase.google.com\nSet rules to: {"rules":{".read":true,".write":true}}');
+        if (url && url.startsWith('https://')) {
+            firebaseUrl = url.replace(/\/$/, '');
+            localStorage.setItem(FIREBASE_KEY, firebaseUrl);
+            syncToCloud();
+            alert('✅ Connected! Data will sync automatically.');
+            updateCloudStatus();
+        }
+    }
+
+    function updateCloudStatus() {
+        const el = document.getElementById('cloud-status');
+        if (firebaseUrl) {
+            el.innerHTML = `<span style="color:#059669;">● Connected</span> <button onclick="setupFirebase()" style="background:none;border:none;color:#6b7280;font-size:0.75rem;cursor:pointer;text-decoration:underline;">Change</button> <button onclick="disconnectCloud()" style="background:none;border:none;color:#ef4444;font-size:0.75rem;cursor:pointer;text-decoration:underline;">Disconnect</button>`;
+        } else {
+            el.innerHTML = `<span style="color:#ef4444;">● Offline</span> <button onclick="setupFirebase()" style="background:none;border:none;color:#3b82f6;font-size:0.75rem;cursor:pointer;text-decoration:underline;">Connect to Cloud</button>`;
+        }
+    }
+
+    function disconnectCloud() {
+        if (confirm('Disconnect cloud sync?')) { firebaseUrl = ''; localStorage.removeItem(FIREBASE_KEY); updateCloudStatus(); }
+    }
+    // ===== VIEW & TAB SWITCHING =====
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        event.target.classList.add('active');
+        document.getElementById('tab-' + tab).classList.add('active');
+        if (tab === 'activities') { renderAllList(); renderCalendar(); }
+        if (tab === 'dashboard') renderDashboard();
+    }
+
+    let currentViewMode = 'list';
+    function setViewMode(mode) {
+        currentViewMode = mode;
+        document.getElementById('btn-list-view').classList.toggle('active', mode === 'list');
+        document.getElementById('btn-cal-view').classList.toggle('active', mode === 'calendar');
+        document.getElementById('activities-list-view').style.display = mode === 'list' ? 'block' : 'none';
+        document.getElementById('activities-cal-view').style.display = mode === 'calendar' ? 'block' : 'none';
+        if (mode === 'calendar') renderCalendar();
+    }
+
+    // ===== HELPERS =====
+    function todayStr() {
+        return new Date().toISOString().split('T')[0];
+    }
+    function formatDate(d) {
+        if (!d) return '';
+        const dt = new Date(d + 'T00:00:00');
+        return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    function formatTime(t) {
+        if (!t) return '';
+        const [h, m] = t.split(':');
+        const hr = parseInt(h);
+        return `${hr > 12 ? hr - 12 : hr || 12}:${m} ${hr >= 12 ? 'PM' : 'AM'}`;
+    }
+    function genId() { return Date.now().toString(36) + Math.random().toString(36).substr(2, 5); }
+    // ===== ADD ACTIVITY =====
+    async function saveActivity() {
+        const title = document.getElementById('add-title').value.trim();
+        const date = document.getElementById('add-date').value;
+        const endDate = document.getElementById('add-end-date').value;
+        if (!title) return alert('Please enter an activity title.');
+        if (!date) return alert('Please select a start date.');
+
+        const activity = {
+            id: genId(),
+            title: title,
+            category: document.getElementById('add-category').value,
+            date: date,
+            endDate: endDate || '',
+            time: document.getElementById('add-time').value,
+            endTime: document.getElementById('add-end-time').value,
+            priority: document.getElementById('add-priority').value,
+            location: document.getElementById('add-location').value.trim(),
+            notes: document.getElementById('add-notes').value.trim(),
+            completed: false,
+            createdAt: new Date().toISOString()
+        };
+        const fileInput = document.getElementById('add-attachment'); if (fileInput.files[0]) { activity.attachment = await fileToBase64(fileInput.files[0]); }
+        activities.push(activity);
+        save();
+        clearForm();
+        alert('✅ Activity saved!');
+        renderAll();
+    }
+
+    function clearForm() {
+        document.getElementById('add-title').value = '';
+        document.getElementById('add-date').value = todayStr();
+        document.getElementById('add-end-date').value = '';
+        document.getElementById('add-time').value = '';
+        document.getElementById('add-end-time').value = '';
+        document.getElementById('add-priority').value = 'medium';
+        document.getElementById('add-location').value = '';
+        document.getElementById('add-notes').value = '';
+        document.getElementById('add-category').value = 'meeting';
+        document.getElementById('add-attachment').value = '';
+        document.getElementById('add-preview').innerHTML = '';
+    }
+    // ===== EDIT ACTIVITY =====
+    function openEditModal(id) {
+        const a = activities.find(x => x.id === id);
+        if (!a) return;
+        editingId = id;
+        document.getElementById('edit-title').value = a.title;
+        document.getElementById('edit-category').value = a.category;
+        document.getElementById('edit-priority').value = a.priority;
+        document.getElementById('edit-date').value = a.date;
+        document.getElementById('edit-end-date').value = a.endDate || '';
+        document.getElementById('edit-time').value = a.time || '';
+        document.getElementById('edit-end-time').value = a.endTime || '';
+        document.getElementById('edit-location').value = a.location || '';
+        document.getElementById('edit-notes').value = a.notes || '';
+        document.getElementById('edit-attachment').value = '';
+        document.getElementById('edit-preview').innerHTML = a.attachment ? '<span style="color:#059669;font-size:0.78rem;">📎 ' + a.attachment.name + '</span>' : '';
+        document.getElementById('edit-modal').classList.add('show');
+    }
+
+    function closeEditModal() {
+        document.getElementById('edit-modal').classList.remove('show');
+        editingId = null;
+    }
+
+    async function updateActivity() {
+        const a = activities.find(x => x.id === editingId);
+        if (!a) return;
+        a.title = document.getElementById('edit-title').value.trim();
+        a.category = document.getElementById('edit-category').value;
+        a.priority = document.getElementById('edit-priority').value;
+        a.date = document.getElementById('edit-date').value;
+        a.endDate = document.getElementById('edit-end-date').value || '';
+        a.time = document.getElementById('edit-time').value;
+        a.endTime = document.getElementById('edit-end-time').value || '';
+        a.location = document.getElementById('edit-location').value.trim();
+        a.notes = document.getElementById('edit-notes').value.trim();
+        const fileInput = document.getElementById('edit-attachment'); if (fileInput.files[0]) { a.attachment = await fileToBase64(fileInput.files[0]); }
+        save();
+        closeEditModal();
+        renderAll();
+    }
+
+    // ===== DELETE & COMPLETE =====
+    function deleteActivity(id) {
+        if (!confirm('Delete this activity?')) return;
+        activities = activities.filter(x => x.id !== id);
+        save();
+        renderAll();
+    }
+
+    function toggleComplete(id) {
+        const a = activities.find(x => x.id === id);
+        if (a) { a.completed = !a.completed; save(); renderAll(); }
+    }
+    // ===== RENDER ACTIVITY ITEM =====
+    function renderItem(a, readonly) {
+        const catIcons = { meeting: '📘', deadline: '🔴', task: '📙', event: '📗', personal: '📕' };
+        const actions = readonly ? '' : `
+            <div class="activity-actions">
+                <button class="btn-icon check" onclick="toggleComplete('${a.id}')" title="${a.completed ? 'Mark incomplete' : 'Mark complete'}">${a.completed ? '↩️' : '✅'}</button>
+                <button class="btn-icon edit" onclick="openEditModal('${a.id}')" title="Edit">✏️</button>
+                <button class="btn-icon delete" onclick="deleteActivity('${a.id}')" title="Delete">🗑️</button>
+            </div>`;
+        const ac = comments[a.id] || []; const cnt = ac.length;
+        const cHtml = ac.map(c => `<div style="padding:6px 10px;background:#f9fafb;border-radius:6px;margin-bottom:4px;font-size:0.8rem;"><span style="font-weight:600;color:#2563eb;">${c.author}</span><span style="color:#9ca3af;font-size:0.7rem;margin-left:8px;">${c.time}</span><div style="color:#4b5563;margin-top:2px;">${c.text}</div></div>`).join('');
+        return `
+            <div class="activity-item priority-${a.priority} ${a.completed ? 'completed' : ''}">
+                <div class="activity-color color-${a.category}"></div>
+                <div class="activity-info">
+                    <div class="activity-title">${catIcons[a.category] || ''} ${a.title}</div>
+                    <div class="activity-meta">
+                        <span>📅 ${formatDate(a.date)}${a.endDate ? ' → ' + formatDate(a.endDate) : ''}</span>
+                        ${a.time ? `<span>🕐 ${formatTime(a.time)}${a.endTime ? ' – ' + formatTime(a.endTime) : ''}</span>` : ''}
+                        ${a.location ? `<span>📍 ${a.location}</span>` : ''}
+                        <span class="cat-badge badge-${a.category}">${a.category}</span>
+                    </div>
+                    ${a.attachment ? `<div style="margin-top:6px;"><a href="${a.attachment.data}" target="_blank" download="${a.attachment.name}" style="color:#3b82f6;font-size:0.78rem;text-decoration:none;">📎 ${a.attachment.name}</a>${a.attachment.type && a.attachment.type.startsWith('image/') ? `<div style="margin-top:4px;"><img src="${a.attachment.data}" style="max-width:200px;max-height:120px;border-radius:6px;border:1px solid #e5e7eb;"></div>` : ''}</div>` : ''}
+                    <button onclick="toggleComments('${a.id}')" style="background:none;border:none;color:#6b7280;font-size:0.76rem;cursor:pointer;padding:4px 6px;border-radius:4px;margin-top:5px;">💬 Comments${cnt ? ` <span style='color:#2563eb;'>(${cnt})</span>` : ''}</button>
+                    <div id="comments-${a.id}" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid #f3f4f6;">
+                        <div>${cHtml || '<div style="color:#9ca3af;font-size:0.78rem;">No comments yet.</div>'}</div>
+                        ${readonly ? '' : `<div style="display:flex;gap:8px;margin-top:8px;">
+                            <input type="text" id="cinput-${a.id}" placeholder="Reply..." onkeydown="if(event.key==='Enter')addComment('${a.id}')" style="flex:1;padding:7px 10px;border:2px solid #e5e7eb;border-radius:6px;font-size:0.82rem;outline:none;">
+                            <button onclick="addComment('${a.id}')" style="padding:7px 14px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:0.8rem;font-weight:600;cursor:pointer;">Send</button>
+                        </div>`}
+                    </div>
+                </div>
+                ${actions}
+            </div>`;
+    }
+    function toggleComments(id) { const el = document.getElementById('comments-' + id); el.style.display = el.style.display === 'none' ? 'block' : 'none'; }
+    function addComment(aid) {
+        const inp = document.getElementById('cinput-' + aid); const text = inp.value.trim(); if (!text) return;
+        if (!comments[aid]) comments[aid] = [];
+        comments[aid].push({ author: 'Admin', text, time: new Date().toLocaleString() });
+        saveComments(); inp.value = ''; renderAll();
+        setTimeout(() => { const el = document.getElementById('comments-' + aid); if (el) el.style.display = 'block'; }, 50);
+    }
+    // ===== RENDER DASHBOARD =====
+    function renderDashboard() {
+        const today = todayStr();
+        const next7 = new Date();
+        next7.setDate(next7.getDate() + 7);
+        const next7Str = next7.toISOString().split('T')[0];
+
+        const todayItems = activities.filter(a => a.date === today && !a.completed);
+        const upcomingItems = activities.filter(a => a.date > today && a.date <= next7Str && !a.completed);
+        const overdueItems = activities.filter(a => a.date < today && !a.completed);
+        const completedItems = activities.filter(a => a.completed);
+
+        document.getElementById('count-today').textContent = todayItems.length;
+        document.getElementById('count-upcoming').textContent = upcomingItems.length;
+        document.getElementById('count-overdue').textContent = overdueItems.length;
+        document.getElementById('count-completed').textContent = completedItems.length;
+
+        const listToday = document.getElementById('list-today');
+        const listUpcoming = document.getElementById('list-upcoming');
+
+        if (todayItems.length) {
+            listToday.innerHTML = todayItems.map(a => renderItem(a, false)).join('');
+            document.getElementById('empty-today').style.display = 'none';
+        } else {
+            listToday.innerHTML = '';
+            document.getElementById('empty-today').style.display = 'block';
+        }
+
+        const combined = [...overdueItems, ...upcomingItems].sort((a, b) => a.date.localeCompare(b.date));
+        if (combined.length) {
+            listUpcoming.innerHTML = combined.map(a => renderItem(a, false)).join('');
+            document.getElementById('empty-upcoming').style.display = 'none';
+        } else {
+            listUpcoming.innerHTML = '';
+            document.getElementById('empty-upcoming').style.display = 'block';
+        }
+    }
+    // ===== RENDER ALL LIST =====
+    function renderAllList() {
+        let filtered = activities;
+        if (currentFilter !== 'all') {
+            filtered = activities.filter(a => a.category === currentFilter);
+        }
+        filtered.sort((a, b) => {
+            if (a.completed !== b.completed) return a.completed ? 1 : -1;
+            return a.date.localeCompare(b.date);
+        });
+
+        const listEl = document.getElementById('list-all');
+        if (filtered.length) {
+            listEl.innerHTML = filtered.map(a => renderItem(a, false)).join('');
+            document.getElementById('empty-all').style.display = 'none';
+        } else {
+            listEl.innerHTML = '';
+            document.getElementById('empty-all').style.display = 'block';
+        }
+    }
+
+    function filterBy(cat) {
+        currentFilter = cat;
+        document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+        event.target.classList.add('active');
+        renderAllList();
+    }
+    // ===== CALENDAR RENDERING =====
+    function renderCalendar() {
+        const grid = document.getElementById('calendar-grid');
+        const label = document.getElementById('cal-month-label');
+        const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        label.textContent = `${months[calMonth]} ${calYear}`;
+
+        const firstDay = new Date(calYear, calMonth, 1).getDay();
+        const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+        const today = todayStr();
+
+        let html = '';
+        const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        dayNames.forEach(d => { html += `<div class="cal-day-header">${d}</div>`; });
+
+        // Previous month fill
+        const prevDays = new Date(calYear, calMonth, 0).getDate();
+        for (let i = firstDay - 1; i >= 0; i--) {
+            const day = prevDays - i;
+            html += `<div class="cal-day other-month"><div class="day-num">${day}</div></div>`;
+        }
+
+        // Current month
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const isToday = dateStr === today ? ' today' : '';
+            const dayActivities = activities.filter(a => !a.completed && dateStr >= a.date && dateStr <= (a.endDate || a.date));
+            const dots = dayActivities.slice(0, 4).map(a => `<span class="cal-dot dot-${a.category}"></span>`).join('');
+            html += `<div class="cal-day${isToday}" onclick="showDayDetail('${dateStr}')">
+                <div class="day-num">${d}</div>
+                <div>${dots}</div>
+            </div>`;
+        }
+
+        // Next month fill
+        const totalCells = firstDay + daysInMonth;
+        const remaining = (7 - (totalCells % 7)) % 7;
+        for (let i = 1; i <= remaining; i++) {
+            html += `<div class="cal-day other-month"><div class="day-num">${i}</div></div>`;
+        }
+
+        grid.innerHTML = html;
+    }
+
+    function navMonth(dir) {
+        calMonth += dir;
+        if (calMonth > 11) { calMonth = 0; calYear++; }
+        if (calMonth < 0) { calMonth = 11; calYear--; }
+        renderCalendar();
+    }
+    function showDayDetail(dateStr) {
+        const dayActivities = activities.filter(a => dateStr >= a.date && dateStr <= (a.endDate || a.date));
+        const card = document.getElementById('day-detail-card');
+        const list = document.getElementById('list-day-detail');
+        document.getElementById('day-detail-title').textContent = `Activities for ${formatDate(dateStr)}`;
+        if (dayActivities.length) {
+            list.innerHTML = dayActivities.map(a => renderItem(a, false)).join('');
+            card.style.display = 'block';
+        } else {
+            list.innerHTML = '<div class="empty-state"><span>📭</span>No activities on this date.</div>';
+            card.style.display = 'block';
+        }
+    }
+
+    // ===== EXPORT / IMPORT =====
+    function exportActivities() {
+        const data = JSON.stringify(activities, null, 2);
+        const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'calendar_activities_backup.json';
+        a.click(); URL.revokeObjectURL(url);
+    }
+
+    function importActivities() {
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = '.json';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const imported = JSON.parse(ev.target.result);
+                    if (Array.isArray(imported)) {
+                        if (confirm(`Import ${imported.length} activities? This will merge with existing data.`)) {
+                            activities = [...activities, ...imported];
+                            save(); renderAll();
+                            alert('✅ Imported successfully!');
+                        }
+                    } else { alert('Invalid file format.'); }
+                } catch(err) { alert('Error reading file.'); }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    }
+    // ===== RENDER ALL =====
+    function renderAll() {
+        renderDashboard();
+        renderAllList();
+        renderCalendar();
+    }
+
+    // ===== NOTIFICATIONS =====
+    const NOTIF_KEY = 'ppdoCalendarNotifications';
+    let notifications = JSON.parse(localStorage.getItem(NOTIF_KEY) || '[]');
+
+    // Request browser notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+
+    function sendBrowserNotif(title, body) {
+        if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification(title, { body: body, icon: '📅' });
+        }
+    }
+
+    function addNotification(message, time) {
+        notifications.unshift({ message, time: time || new Date().toLocaleString(), read: false });
+        if (notifications.length > 50) notifications = notifications.slice(0, 50);
+        localStorage.setItem(NOTIF_KEY, JSON.stringify(notifications)); updateNotifUI();
+        // Browser push + title flash
+        sendBrowserNotif('📅 PPDO Calendar', message.replace(/<[^>]*>/g, ''));
+        const origTitle = document.title;
+        document.title = '🔔 New notification!';
+        setTimeout(() => { document.title = origTitle; }, 3000);
+    }
+    function updateNotifUI() {
+        const unread = notifications.filter(n => !n.read).length;
+        const badge = document.getElementById('notif-badge');
+        if (unread > 0) { badge.style.display = 'flex'; badge.textContent = unread > 9 ? '9+' : unread; }
+        else { badge.style.display = 'none'; }
+        const list = document.getElementById('notif-list');
+        if (notifications.length === 0) { list.innerHTML = '<div class="notif-empty">No notifications yet.</div>'; return; }
+        list.innerHTML = notifications.slice(0, 20).map(n => `<div class="notif-item ${n.read ? '' : 'unread'}">${n.message}<span class="notif-time">${n.time}</span></div>`).join('');
+    }
+    function toggleNotifPanel() {
+        const panel = document.getElementById('notif-panel'); panel.classList.toggle('show');
+        if (panel.classList.contains('show')) { notifications.forEach(n => n.read = true);
+            localStorage.setItem(NOTIF_KEY, JSON.stringify(notifications)); updateNotifUI(); }
+    }
+    function clearNotifications() { notifications = []; localStorage.setItem(NOTIF_KEY, JSON.stringify(notifications)); updateNotifUI(); }
+
+    // ===== PRINT =====
+    function openPrintModal() {
+        document.getElementById('print-from').value = todayStr();
+        document.getElementById('print-to').value = todayStr();
+        document.getElementById('print-modal').classList.add('show');
+    }
+    function closePrintModal() { document.getElementById('print-modal').classList.remove('show'); }
+    function printActivities() {
+        const from = document.getElementById('print-from').value;
+        const to = document.getElementById('print-to').value;
+        if (!from || !to) return alert('Please select both dates.');
+        const filtered = activities.filter(a => a.date >= from && a.date <= to).sort((a,b) => a.date.localeCompare(b.date));
+        const catIcons = { meeting:'📘', deadline:'🔴', task:'📙', event:'📗', personal:'📕' };
+        let html = `<h3 style="text-align:center;margin-bottom:5px;font-size:1rem;">PPDO Calendar</h3>
+            <p style="text-align:center;color:#666;margin-bottom:20px;font-size:0.85rem;">Activities from ${formatDate(from)} to ${formatDate(to)}</p>`;
+        if (filtered.length === 0) { html += '<p style="text-align:center;color:#999;">No activities in this date range.</p>'; }
+        else {
+            html += '<table style="width:100%;border-collapse:collapse;font-size:0.85rem;">';
+            html += '<tr style="background:#f3f4f6;"><th style="padding:8px;text-align:left;border:1px solid #ddd;">Date</th><th style="padding:8px;text-align:left;border:1px solid #ddd;">Time</th><th style="padding:8px;text-align:left;border:1px solid #ddd;">Title</th><th style="padding:8px;text-align:left;border:1px solid #ddd;">Category</th><th style="padding:8px;text-align:left;border:1px solid #ddd;">Priority</th><th style="padding:8px;text-align:left;border:1px solid #ddd;">Location</th></tr>';
+            filtered.forEach(a => {
+                html += `<tr><td style="padding:6px 8px;border:1px solid #ddd;">${formatDate(a.date)}${a.endDate?' → '+formatDate(a.endDate):''}</td><td style="padding:6px 8px;border:1px solid #ddd;">${a.time ? formatTime(a.time)+(a.endTime?' – '+formatTime(a.endTime):'') : '-'}</td><td style="padding:6px 8px;border:1px solid #ddd;">${a.title}</td><td style="padding:6px 8px;border:1px solid #ddd;">${a.category}</td><td style="padding:6px 8px;border:1px solid #ddd;">${a.priority}</td><td style="padding:6px 8px;border:1px solid #ddd;">${a.location||'-'}</td></tr>`;
+            });
+            html += '</table>';
+            html += `<p style="margin-top:15px;font-size:0.8rem;color:#999;">Total: ${filtered.length} activities | Printed: ${new Date().toLocaleString()}</p>`;
+        }
+        document.getElementById('print-content').innerHTML = html;
+        closePrintModal();
+        setTimeout(() => window.print(), 300);
+    }
+
+    // ===== STORAGE CHECK =====
+    function checkStorageUsage() {
+        const dataSize = new Blob([JSON.stringify({ activities, comments })]).size;
+        const maxSize = 1024 * 1024 * 1024; // 1GB Firebase free limit
+        const pct = (dataSize / maxSize) * 100;
+
+        if (pct >= 90) {
+            // Prompt to delete old attachments
+            const oneYearAgo = new Date();
+            oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+            const cutoff = oneYearAgo.toISOString().split('T')[0];
+            const oldWithAttachments = activities.filter(a => a.attachment && a.date < cutoff);
+            if (oldWithAttachments.length > 0 && confirm(`⚠️ Storage is at ${pct.toFixed(1)}% (${(dataSize/1024/1024).toFixed(1)} MB).\n\nFound ${oldWithAttachments.length} activities older than 1 year with attachments.\n\nDelete their attachments to free space?`)) {
+                oldWithAttachments.forEach(a => { a.attachment = null; });
+                save(); renderAll();
+                alert(`✅ Removed ${oldWithAttachments.length} old attachments. Storage freed.`);
+            }
+        } else if (pct >= 50) {
+            console.warn(`⚠️ Storage usage: ${pct.toFixed(1)}% (${(dataSize/1024/1024).toFixed(1)} MB of 1 GB)`);
+            document.getElementById('cloud-status').innerHTML += ` <span style="color:#f59e0b;font-size:0.72rem;">⚠️ ${pct.toFixed(0)}% storage used</span>`;
+        }
+    }
+
+    (function init() {
+        document.getElementById('add-date').value = todayStr();
+        document.getElementById('add-end-date').value = '';
+        updateCloudStatus();
+        // Load from Firebase first (restore data if localStorage is empty)
+        loadFromFirebase();
+        // Check storage usage
+        setTimeout(checkStorageUsage, 2000);
+        // Poll cloud for viewer comments every 5 seconds
+        setInterval(async () => {
+            if (!firebaseUrl) return;
+            try {
+                const r = await fetch(firebaseUrl + '/data.json');
+                if (!r.ok) return; const data = await r.json();
+                if (data && data.comments) {
+                    const newCount = Object.values(data.comments).reduce((s,a)=>s+a.length,0);
+                    const oldCount = Object.values(comments).reduce((s,a)=>s+a.length,0);
+                    if (newCount > oldCount) {
+                        Object.keys(data.comments).forEach(aid => {
+                            const oldArr=comments[aid]||[]; const newArr=data.comments[aid]||[];
+                            if(newArr.length>oldArr.length){const fresh=newArr.slice(oldArr.length);
+                                fresh.forEach(c=>{if(c.author!=='Admin'){const act=activities.find(x=>x.id===aid);
+                                    addNotification(`<span class="notif-author">${c.author}</span> commented on "${act?act.title:'activity'}": "${c.text}"`,c.time);}});}
+                        });
+                        comments=data.comments; localStorage.setItem(COMMENTS_KEY,JSON.stringify(comments)); renderAll();
+                    }
+                }
+            } catch(e){}
+        }, 5000);
+        // Listen for viewer comments in real-time (same domain)
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'ppdoCalendarComments' && e.newValue) {
+                const newComments = JSON.parse(e.newValue);
+                const newCount = Object.values(newComments).reduce((s,a)=>s+a.length,0);
+                const oldCount = Object.values(comments).reduce((s,a)=>s+a.length,0);
+                if (newCount > oldCount) {
+                    Object.keys(newComments).forEach(aid => {
+                        const oldArr = comments[aid]||[];
+                        const newArr = newComments[aid]||[];
+                        if (newArr.length > oldArr.length) {
+                            const fresh = newArr.slice(oldArr.length);
+                            fresh.forEach(c => { if(c.author!=='Admin') {
+                                const act=activities.find(x=>x.id===aid);
+                                addNotification(`<span class="notif-author">${c.author}</span> commented on "${act?act.title:'activity'}": "${c.text}"`,c.time);
+                            }});
+                        }
+                    });
+                }
+                comments=newComments; localStorage.setItem(COMMENTS_KEY,JSON.stringify(comments)); renderAll();
+            }
+            if (e.key === 'ppdoCalendarViewerComments' && e.newValue) {
+                const vc = JSON.parse(e.newValue);
+                Object.keys(vc).forEach(aid => {
+                    if (!comments[aid]) comments[aid] = [];
+                    const existing = comments[aid].length;
+                    if (vc[aid].length > existing) {
+                        const fresh = vc[aid].slice(existing);
+                        fresh.forEach(c => { if(c.author!=='Admin') {
+                            comments[aid].push(c);
+                            const act=activities.find(x=>x.id===aid);
+                            addNotification(`<span class="notif-author">${c.author}</span> commented on "${act?act.title:'activity'}": "${c.text}"`,c.time);
+                        }});
+                        localStorage.setItem(COMMENTS_KEY,JSON.stringify(comments));
+                    }
+                });
+                renderAll();
+            }
+        });
+        renderAll(); updateNotifUI();
+    })();
+    </script>
+</body>
+</html>
