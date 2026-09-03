@@ -135,6 +135,16 @@
         .notif-empty { text-align: center; color: #9ca3af; padding: 20px; font-size: 0.82rem; }
         .notif-clear { background: none; border: none; color: #9ca3af; font-size: 0.75rem; cursor: pointer; }
         .notif-clear:hover { color: #ef4444; }
+        /* Toast (in-app popup so notifications show even if browser push is blocked) */
+        .toast-wrap { position: fixed; top: 70px; right: 20px; z-index: 1100;
+            display: flex; flex-direction: column; gap: 10px; max-width: 320px; }
+        .toast { background: #fff; border-left: 4px solid #3b82f6; border-radius: 8px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.2); padding: 12px 14px; font-size: 0.82rem;
+            color: #374151; opacity: 0; transform: translateX(30px);
+            transition: opacity 0.3s, transform 0.3s; }
+        .toast.show { opacity: 1; transform: translateX(0); }
+        .toast strong { color: #1e3a5f; }
+        @media (max-width: 600px) { .toast-wrap { right: 10px; left: 10px; max-width: none; } }
         /* View Toggle */
         .view-toggle-bar { display: flex; gap: 8px; margin-bottom: 15px; }
         .view-toggle-btn { padding: 6px 16px; border-radius: 20px; border: 1px solid #e5e7eb;
@@ -187,6 +197,7 @@
             </div>
             <div id="notif-list"><div class="notif-empty">No notifications yet.</div></div>
         </div>
+        <div class="toast-wrap" id="toast-wrap"></div>
         <h1 id="page-title">📅 PPDO Calendar</h1>
         <p class="subtitle">Shared PPDO Activity Dashboard (View Only)</p>
 
@@ -286,6 +297,29 @@
     let blobId = '';
     let lastActivityCount = 0;
     let lastAdminCommentCount = 0;
+    // Track which activity IDs the viewer has already seen (persisted) so new
+    // activities are detected reliably even after edits/deletions.
+    const SEEN_KEY = 'ppdoCalViewerSeenIds';
+    let seenActivityIds = new Set(JSON.parse(localStorage.getItem(SEEN_KEY) || '[]'));
+    function persistSeenIds() { localStorage.setItem(SEEN_KEY, JSON.stringify([...seenActivityIds])); }
+
+    // Detect activities not seen before and notify the viewer about each one.
+    // If markOnly is true, we just record the IDs without notifying (used on
+    // the very first load so the viewer isn't spammed about existing items).
+    function detectNewActivities(list, markOnly) {
+        if (!Array.isArray(list)) return;
+        list.forEach(a => {
+            if (!a || !a.id) return;
+            if (!seenActivityIds.has(a.id)) {
+                seenActivityIds.add(a.id);
+                if (!markOnly) {
+                    addNotification(`🆕 New activity: "<strong>${escHtml(a.title)}</strong>"`, new Date().toLocaleString());
+                    sendBrowserNotif('📅 New Activity', a.title || 'A new activity was added');
+                }
+            }
+        });
+        persistSeenIds();
+    }
 
     const COMMENTS_KEY = 'ppdoCalendarViewerComments';
     comments = JSON.parse(localStorage.getItem(COMMENTS_KEY) || '{}');
@@ -312,6 +346,7 @@
             if (localData) {
                 activities = JSON.parse(localData);
                 if (localComments) comments = JSON.parse(localComments);
+                detectNewActivities(activities, true); // mark existing as seen
                 showContent();
             } else {
                 // Try saved Firebase URL
@@ -329,12 +364,8 @@
         // Listen for real-time localStorage changes from admin (instant updates!)
         window.addEventListener('storage', (e) => {
             if (e.key === 'ppdoCalendarActivities' && e.newValue) {
-                const oldCount = activities.length;
                 activities = JSON.parse(e.newValue);
-                if (activities.length > oldCount) {
-                    const newOnes = activities.slice(oldCount);
-                    newOnes.forEach(a => addNotification(`New activity: "<strong>${a.title}</strong>"`, new Date().toLocaleString()));
-                }
+                detectNewActivities(activities, false);
                 renderAll();
             }
             if (e.key === 'ppdoCalendarComments' && e.newValue) {
@@ -373,14 +404,9 @@
             if (!res.ok) throw new Error('Not found');
             const data = await res.json();
             if (data && data.activities) {
-                // Detect new activities (skip on first load)
-                if (!isFirstLoad && data.activities.length > lastActivityCount) {
-                    const newOnes = data.activities.slice(lastActivityCount);
-                    newOnes.forEach(a => {
-                        addNotification(`New activity: "<strong>${a.title}</strong>"`, new Date().toLocaleString());
-                        sendBrowserNotif('📅 New Activity', a.title);
-                    });
-                }
+                // Detect new activities by ID. On first load, just record existing
+                // IDs (markOnly) so the viewer isn't spammed; afterwards notify.
+                detectNewActivities(data.activities, isFirstLoad);
                 lastActivityCount = data.activities.length;
 
                 // Detect admin replies (skip on first load)
@@ -429,8 +455,16 @@
         document.getElementById('loading-state').style.display = 'none';
         document.getElementById('main-content').style.display = 'block';
         renderAll();
-        // Poll every 10 seconds (only start once)
-        if (blobId && !window._refreshStarted) { window._refreshStarted = true; setInterval(() => loadFromCloud(blobId), 5000); }
+        // Poll the cloud every 4 seconds for new activities/replies (start once).
+        // Also re-check immediately when the tab regains focus so viewers who
+        // switch back to the tab see updates without waiting for the next poll.
+        if (blobId && !window._refreshStarted) {
+            window._refreshStarted = true;
+            setInterval(() => loadFromCloud(blobId), 4000);
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') loadFromCloud(blobId);
+            });
+        }
     }
     // ===== HELPERS =====
     function todayStr() { return new Date().toISOString().split('T')[0]; }
@@ -659,21 +693,47 @@
     }
 
     // ===== NOTIFICATIONS =====
-    // Request browser notification permission
-    if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission();
+    // Request browser notification permission (retry on first user interaction,
+    // since some browsers only allow the prompt after a user gesture).
+    function ensureNotifPermission() {
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission().catch(() => {});
+        }
     }
+    ensureNotifPermission();
+    window.addEventListener('click', ensureNotifPermission, { once: true });
 
     function sendBrowserNotif(title, body) {
-        if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification(title, { body: body, icon: '📅' });
-        }
+        try {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(title, { body: body, icon: '📅' });
+            }
+        } catch (e) {}
+    }
+
+    // In-app toast so a notification is always visible, even when the browser
+    // has blocked native notifications or the permission was never granted.
+    function showToast(message) {
+        const wrap = document.getElementById('toast-wrap');
+        if (!wrap) return;
+        const el = document.createElement('div');
+        el.className = 'toast';
+        el.innerHTML = message;
+        wrap.appendChild(el);
+        // Force reflow then animate in
+        requestAnimationFrame(() => el.classList.add('show'));
+        setTimeout(() => {
+            el.classList.remove('show');
+            setTimeout(() => el.remove(), 300);
+        }, 6000);
     }
 
     function addNotification(message, time) {
         notifications.unshift({ message, time: time || new Date().toLocaleString(), read: false });
         if (notifications.length > 50) notifications = notifications.slice(0, 50);
         localStorage.setItem(NOTIF_KEY, JSON.stringify(notifications)); updateNotifUI();
+        // Always show an in-app toast so the viewer sees it immediately
+        showToast(message);
         // Flash page title to get attention
         const origTitle = document.title;
         document.title = '🔔 New notification!';
